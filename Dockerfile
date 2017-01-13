@@ -1,31 +1,37 @@
-FROM bamos/ubuntu-opencv-dlib-torch:ubuntu_14.04-opencv_2.4.11-dlib_19.0-torch_2016.07.12
-MAINTAINER Brandon Amos <brandon.amos.cs@gmail.com>
+FROM joov/rpi-opencv-dlib-torch
+MAINTAINER Gaurav Kaila <gaurav.kaila@outlook.com>
 
-# TODO: Should be added to opencv-dlib-torch image.
-RUN ln -s /root/torch/install/bin/* /usr/local/bin
+# work-around for accessing git repos
+RUN git config --global url.https://github.com/.insteadOf git://github.com/
 
-RUN apt-get update && apt-get install -y \
-    curl \
-    git \
-    graphicsmagick \
-    python-dev \
-    python-pip \
-    python-numpy \
-    python-nose \
-    python-scipy \
-    python-pandas \
-    python-protobuf\
-    wget \
-    zip \
-    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# install python packages
+RUN sudo apt-get upgrade -y
+RUN sudo apt-get install python-setuptools -y
+RUN sudo apt-get install python-dev build-essential -y
+RUN apt-get install vim -y
+RUN sudo easy_install pip
+RUN pip install pandas
+RUN pip install scipy
+RUN apt-get install python-sklearn -y
 
+# install luarocks packages
+RUN /torch/install/bin/luarocks install dpnn
+RUN /torch/install/bin/luarocks install nn
+RUN /torch/install/bin/luarocks install optim
+#RUN /torch/install/bin/luarocks install csvigo
+
+# openface
 ADD . /root/openface
 RUN cd ~/openface && \
-    ./models/get-models.sh && \
-    pip2 install -r requirements.txt && \
-    python2 setup.py install && \
-    pip2 install -r demos/web/requirements.txt && \
-    pip2 install -r training/requirements.txt
+    ./models/get-models.sh \
+    python setup.py install
 
-EXPOSE 8000 9000
-CMD /bin/bash -l -c '/root/openface/demos/web/start-servers.sh'
+# Post installation tasks
+
+COPY convert.lua .
+COPY nn4.small2.v1.ascii.t7.xz .
+RUN unxz nn4.small2.v1.ascii.t7.xz && \
+   /torch/install/bin/th convert.lua nn4.small2.v1.ascii.t7 nn4.small2.v1.t7 && \
+   mv nn4.small2.v1.t7 /root/openface/models/openface/ && \
+   rm nn4.small2.v1.ascii.t7
+
